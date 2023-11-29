@@ -1,80 +1,106 @@
+#include "main.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <fcntl.h>
-#include <unistd.h>
 
-void check_IO_stat(int stat, int fd, const char *filename, char mode);
+char *create_buffer(char *file);
+void close_file(int fd);
 
 /**
- * main - the main function that copies the content of one file to another
- * @argc: the argument count
- * @argv: the argument passed
+ * create_buffer - it allocates 1024 bytes for a buffer.
+ * @file: The name of a file buffer is storing chars for.
  *
- * Return: 0 on success, exit otherwise
+ * Return: the pointer to the newly-allocated buffer.
  */
+
+char *create_buffer(char *file)
+{
+	char *buffer;
+
+	buffer = malloc(sizeof(char) * 1024);
+
+	if (buffer == NULL)
+	{
+		dprintf(STDERR_FILENO,
+			"Error: Can't write to %s\n", file);
+		exit(99);
+	}
+
+	return (buffer);
+}
+
+/**
+ * close_file - this closes file descriptors.
+ * @fd: The file descriptor to be closed.
+ */
+
+void close_file(int fd)
+{
+	int a;
+
+	a = close(fd);
+
+	if (a == -1)
+	{
+		dprintf(STDERR_FILENO, "Error: Can't close fd %d\n", fd);
+		exit(100);
+	}
+}
+
+/**
+ * main - it copies contents of a file to another file.
+ * @argc: The number of arguments supplied to the program.
+ * @argv: the array of pointers to the arguments.
+ *
+ * Return: 0 on success.
+ *
+ * Description: If the argument count is incorrect - exit code 97.
+ *              If file_from does not exist or cannot be read - exit code 98.
+ *              If file_to cannot be created or written to - exit code 99.
+ *              If file_to or file_from cannot be closed - exit code 100.
+ */
+
 int main(int argc, char *argv[])
 {
-int src, dest, n_read = 1024, wrote, close_src, close_dest;
-unsigned int mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-char buffer[1024];
+	int from, to, x, w;
+	char *buffer;
 
-if (argc != 3)
-{
-dprintf(STDERR_FILENO, "Usage: cp file_from file_to\n");
-exit(97);
-}
+	if (argc != 3)
+	{
+		dprintf(STDERR_FILENO, "Usage: cp file_from file_to\n");
+		exit(97);
+	}
 
-src = open(argv[1], O_RDONLY);
-check_IO_stat(src, -1, argv[1], 'O');
+	buffer = create_buffer(argv[2]);
+	from = open(argv[1], O_RDONLY);
+	x = read(from, buffer, 1024);
+	to = open(argv[2], O_CREAT | O_WRONLY | O_TRUNC, 0664);
 
-dest = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, mode);
-check_IO_stat(dest, -1, argv[2], 'W');
+	do {
+		if (from == -1 || x == -1)
+		{
+			dprintf(STDERR_FILENO,
+				"Error: Can't read from file %s\n", argv[1]);
+			free(buffer);
+			exit(98);
+		}
 
-while (n_read == 1024)
-{
-n_read = read(src, buffer, sizeof(buffer));
-if (n_read == -1)
-check_IO_stat(-1, -1, argv[1], 'O');
+		w = write(to, buffer, x);
+		if (to == -1 || w == -1)
+		{
+			dprintf(STDERR_FILENO,
+				"Error: Can't write to %s\n", argv[2]);
+			free(buffer);
+			exit(99);
+		}
 
-wrote = write(dest, buffer, n_read);
-if (wrote == -1)
-check_IO_stat(-1, -1, argv[2], 'W');
+		x = read(from, buffer, 1024);
+		to = open(argv[2], O_WRONLY | O_APPEND);
 
-close_src = close(src);
-check_IO_stat(close_src, src, NULL, 'C');
+	} while (x > 0);
 
-close_dest = close(dest);
-check_IO_stat(close_dest, dest, NULL, 'C');
-return (0);
-}
-}
+	free(buffer);
+	close_file(from);
+	close_file(to);
 
-/**
- * check_IO_stat - function that checks if the file can open or close
- * @stat: result of the operation (e.g., open, close)
- * @fd: file descriptor
- * @filename: name of the file
- * @mode: opening or close file
- *
- * Return: void
- */
-void check_IO_stat(int stat, int fd, const char *filename, char mode)
-{
-if (mode == 'C' && stat == -1)
-{
-dprintf(STDERR_FILENO, "Error: Can't close fd %d\n", fd);
-exit(1000);
-}
-else if (mode == 'O' && stat == -1)
-{
-dprintf(STDERR_FILENO, "Error: Can't read from file %s\n", filename);
-exit(98);
-}
-else if (mode == 'W' && stat == -1)
-{
-dprintf(STDERR_FILENO, "Error: Can't write to %s\n", filename);
-exit(99);
-}
+	return (0);
 }
